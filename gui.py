@@ -1,5 +1,6 @@
 """Interface gráfica Tkinter — TP1 + TP2 de Teoria da Informação."""
 
+import random
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
@@ -120,6 +121,8 @@ class Tab1(ttk.Frame):
 
         ttk.Button(sec_err, text="Inserir Erro", command=self._insert_error).grid(
             row=1, column=2, padx=4, pady=(4, 0))
+        ttk.Button(sec_err, text="Erro Aleatório", command=self._insert_random_error).grid(
+            row=1, column=3, padx=4, pady=(4, 0))
 
         # ── Resultado ─────────────────────────────────────────
         sec_res = _section(self, "Resultado")
@@ -289,6 +292,17 @@ class Tab1(ttk.Frame):
         _append(self.result_area, f"  Depois: {modified}")
         _append(self.result_area, f"{'='*55}")
 
+    def _insert_random_error(self):
+        codeword = self.entry_codeword.get().strip()
+        if not codeword:
+            messagebox.showwarning("Aviso", "Nenhum codeword no campo para inserir erro.")
+            return
+        bits_only = codeword.replace(" ", "")
+        pos = random.randint(0, len(bits_only) - 1)
+        self.entry_err_pos.delete(0, tk.END)
+        self.entry_err_pos.insert(0, str(pos))
+        self._insert_error()
+
     def _parse_nums(self, raw: str) -> list:
         """
         Converte entrada em lista de inteiros:
@@ -388,6 +402,8 @@ class Tab2(ttk.Frame):
         self.entry_err_pos.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(4, 0))
         ttk.Button(sec_err, text="Inserir Erro", command=self._insert_error).grid(
             row=1, column=2, padx=4, pady=(4, 0))
+        ttk.Button(sec_err, text="Erro Aleatório", command=self._insert_random_error).grid(
+            row=1, column=3, padx=4, pady=(4, 0))
 
         # ── Resultado ─────────────────────────────────────────
         sec_res = _section(self, "Resultado")
@@ -536,6 +552,16 @@ class Tab2(ttk.Frame):
         _append(self.result_area, f"  Depois: {modified}")
         _append(self.result_area, f"{'='*55}")
 
+    def _insert_random_error(self):
+        bits = self.entry_codeword.get().strip()
+        if not bits:
+            messagebox.showwarning("Aviso", "Preencha o campo 'Codeword' primeiro.")
+            return
+        pos = random.randint(0, len(bits) - 1)
+        self.entry_err_pos.delete(0, tk.END)
+        self.entry_err_pos.insert(0, str(pos))
+        self._insert_error()
+
     def _get_r(self) -> int:
         try:
             r = int(self.entry_r.get().strip())
@@ -621,6 +647,9 @@ class Tab3(ttk.Frame):
         self.entry_err_pos = ttk.Entry(err_frame, width=6, font=("Courier New", 11))
         self.entry_err_pos.insert(0, "0")
         self.entry_err_pos.pack(side=tk.LEFT, padx=(4, 0))
+        self.var_random_err = tk.BooleanVar(value=False)
+        ttk.Checkbutton(err_frame, text="Aleatória", variable=self.var_random_err).pack(
+            side=tk.LEFT, padx=(8, 0))
 
         self.btn_send = ttk.Button(sec_cli, text="Enviar (Cliente)",
                                    command=self._send_message)
@@ -709,10 +738,15 @@ class Tab3(ttk.Frame):
 
             # Insere erro se solicitado
             if self.var_insert_err.get():
-                pos_str = self.entry_err_pos.get().strip()
-                if not pos_str.isdigit():
-                    raise ValueError("Posição de erro deve ser um inteiro não-negativo")
-                pos = int(pos_str)
+                if self.var_random_err.get():
+                    pos = random.randint(0, len(codeword) - 1)
+                    self.entry_err_pos.delete(0, tk.END)
+                    self.entry_err_pos.insert(0, str(pos))
+                else:
+                    pos_str = self.entry_err_pos.get().strip()
+                    if not pos_str.isdigit():
+                        raise ValueError("Posição de erro deve ser um inteiro não-negativo")
+                    pos = int(pos_str)
                 codeword = flip_bit(codeword, pos)
                 self._log(f"[Cliente] ⚠ Erro inserido na posição {pos}: {codeword}")
 
