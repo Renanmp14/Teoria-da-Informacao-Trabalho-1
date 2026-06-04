@@ -168,7 +168,7 @@ class Tab1(ttk.Frame):
                     c = golomb.encode(m, n)
                     lines.append(f"  {n:>6}  →  {c}")
                     codes.append(c)
-                codeword = " ".join(codes)
+                codeword = "".join(codes)
 
             elif method == "elias_gamma":
                 lines.append("Método: Elias-Gamma")
@@ -178,7 +178,7 @@ class Tab1(ttk.Frame):
                     c = elias_gamma.encode(n)
                     lines.append(f"  {n:>6}  →  {c}")
                     codes.append(c)
-                codeword = " ".join(codes)
+                codeword = "".join(codes)
 
             elif method == "fibonacci":
                 lines.append("Método: Fibonacci / Zeckendorf")
@@ -188,7 +188,7 @@ class Tab1(ttk.Frame):
                     c = fibonacci.encode(n)
                     lines.append(f"  {n:>6}  →  {c}")
                     codes.append(c)
-                codeword = " ".join(codes)
+                codeword = "".join(codes)
 
             elif method == "huffman":
                 lines.append("Método: Huffman")
@@ -238,21 +238,19 @@ class Tab1(ttk.Frame):
             if method == "golomb":
                 m = self._get_m()
                 lines.append(f"Método: Golomb  (M={m})")
-                parts = raw.split()
-                for part in parts:
-                    n = golomb.decode(m, part)
-                    lines.append(f"  {part}  →  {n}  (ASCII: {chr(n) if 32 <= n < 127 else '—'})")
+                nums = self._stream_golomb_decode(raw.replace(" ", ""), m)
+                for n in nums:
+                    lines.append(f"  {n}  (ASCII: {chr(n) if 32 <= n < 127 else '—'})")
 
             elif method == "elias_gamma":
                 lines.append("Método: Elias-Gamma")
-                parts = raw.split()
-                for part in parts:
-                    n = elias_gamma.decode(part)
-                    lines.append(f"  {part}  →  {n}  (ASCII: {chr(n) if 32 <= n < 127 else '—'})")
+                nums = self._stream_elias_decode(raw.replace(" ", ""))
+                for n in nums:
+                    lines.append(f"  {n}  (ASCII: {chr(n) if 32 <= n < 127 else '—'})")
 
             elif method == "fibonacci":
                 lines.append("Método: Fibonacci / Zeckendorf")
-                parts = raw.split()
+                parts = raw.split() if " " in raw else self._split_fib_codewords(raw)
                 for part in parts:
                     n = fibonacci.decode(part)
                     lines.append(f"  {part}  →  {n}  (ASCII: {chr(n) if 32 <= n < 127 else '—'})")
@@ -277,6 +275,68 @@ class Tab1(ttk.Frame):
 
         except Exception as exc:
             messagebox.showerror("Erro de Decodificação", str(exc))
+
+    def _stream_elias_decode(self, bits: str) -> list:
+        import math as _math
+        nums, i = [], 0
+        while i < len(bits):
+            k = 0
+            while i + k < len(bits) and bits[i + k] == "0":
+                k += 1
+            end = i + k + (k + 1)
+            if end > len(bits):
+                break
+            nums.append(elias_gamma.decode(bits[i:end]))
+            i = end
+        return nums
+
+    def _stream_golomb_decode(self, bits: str, m: int) -> list:
+        import math as _math
+        b = _math.ceil(_math.log2(m)) if m > 1 else 1
+        cutoff = (1 << b) - m
+        nums, i = [], 0
+        while i < len(bits):
+            q = 0
+            while i < len(bits) and bits[i] == "1":
+                q += 1
+                i += 1
+            if i >= len(bits):
+                break
+            i += 1  # consume '0'
+            if m == 1:
+                nums.append(q)
+                continue
+            if i + b - 1 > len(bits):
+                break
+            r_temp = int(bits[i:i + b - 1], 2)
+            if r_temp < cutoff:
+                nums.append(q * m + r_temp)
+                i += b - 1
+            else:
+                if i + b > len(bits):
+                    break
+                nums.append(q * m + int(bits[i:i + b], 2) - cutoff)
+                i += b
+        return nums
+
+    def _split_fib_codewords(self, bits: str) -> list:
+        """Divide bits contínuos de Fibonacci usando o stop-bit '1' após sequência sem '11'."""
+        parts, i = [], 0
+        while i < len(bits):
+            j, prev1 = i, False
+            while j < len(bits):
+                cur = bits[j] == "1"
+                if cur and prev1:
+                    parts.append(bits[i:j + 1])
+                    i = j + 1
+                    break
+                prev1 = cur
+                j += 1
+            else:
+                if j > i:
+                    parts.append(bits[i:j])
+                break
+        return parts
 
     def _insert_error(self):
         codeword = self.entry_codeword.get().strip()
@@ -773,10 +833,33 @@ class Tab3(ttk.Frame):
         return nums
 
     def _stream_golomb(self, bits: str, m: int) -> list:
-        try:
-            return [golomb.decode(m, bits)]
-        except Exception:
-            return []
+        import math as _math
+        b = _math.ceil(_math.log2(m)) if m > 1 else 1
+        cutoff = (1 << b) - m
+        nums, i = [], 0
+        while i < len(bits):
+            q = 0
+            while i < len(bits) and bits[i] == "1":
+                q += 1
+                i += 1
+            if i >= len(bits):
+                break
+            i += 1
+            if m == 1:
+                nums.append(q)
+                continue
+            if i + b - 1 > len(bits):
+                break
+            r_temp = int(bits[i:i + b - 1], 2)
+            if r_temp < cutoff:
+                nums.append(q * m + r_temp)
+                i += b - 1
+            else:
+                if i + b > len(bits):
+                    break
+                nums.append(q * m + int(bits[i:i + b], 2) - cutoff)
+                i += b
+        return nums
 
     def _log(self, msg: str) -> None:
         self.after(0, lambda: _append(self.log_area, msg))
