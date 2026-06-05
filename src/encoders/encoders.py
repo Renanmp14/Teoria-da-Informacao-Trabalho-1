@@ -79,14 +79,16 @@ def Fibonnaci_Zeckendorf_encoder(message: int) -> str:
     fibonacci = [1, 2]
     while fibonacci[-1] + fibonacci[-2] <= message:
         fibonacci.append(fibonacci[-1] + fibonacci[-2])
+    if fibonacci[-1] > message:
+        fibonacci.pop()
 
-    encoder_return: list = []
+    selected = set()
     for v in fibonacci[::-1]:
         if v <= message:
-            encoder_return.append("1")
+            selected.add(v)
             message = message - v
-        else:
-            encoder_return.append("0")
+
+    encoder_return = ["1" if v in selected else "0" for v in fibonacci]
     # Stop-bit para delimitar o fim da palavra-código.
     encoder_return.append("1")
     return "".join(encoder_return)

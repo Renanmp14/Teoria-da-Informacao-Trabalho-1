@@ -219,8 +219,8 @@ Aceita inteiros positivos (≥ 1). Texto vira ASCII automaticamente.
 |---|---|
 | `1` | `11` |
 | `4` | `1011` |
-| `13` | `1000001` |
-| `66` | `1000101001` |
+| `13` | `0000011` |
+| `66` | `0010100011` |
 | `hi` | Converte `h`→104 e `i`→105 |
 
 **Para decodificar:** cole os bits (com stop-bit `1` ao final) no campo **"Codeword atual"**.
@@ -487,7 +487,7 @@ cripto-da-galera encode fibonacci <n>
 
 ```bash
 cripto-da-galera encode fibonacci 66
-# Saída: 1000101001
+# Saída: 0010100011
 ```
 
 ---
@@ -563,7 +563,7 @@ cripto-da-galera decode fibonacci <bits>
 ```
 
 ```bash
-cripto-da-galera decode fibonacci 1000101001
+cripto-da-galera decode fibonacci 0010100011
 # Saída: 66
 ```
 

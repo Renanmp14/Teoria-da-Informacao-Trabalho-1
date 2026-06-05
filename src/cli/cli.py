@@ -159,7 +159,7 @@ class CLI:
 
 🔢 FIBONACCI (Zeckendorf)
    Encode: cripto-da-galera encode fibonacci 13
-   Decode: cripto-da-galera decode fibonacci 1000001
+   Decode: cripto-da-galera decode fibonacci 0000011
 
 🔢 ELIAS-GAMMA
    Encode: cripto-da-galera encode elias-gamma 10

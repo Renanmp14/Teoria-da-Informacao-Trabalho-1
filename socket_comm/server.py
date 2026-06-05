@@ -14,6 +14,10 @@ HOST = "localhost"
 PORT = 65432
 
 
+def _stdout_log(message: str) -> None:
+    print(message, flush=True)
+
+
 def _handle_client(conn: socket.socket, addr, log_cb=None) -> None:
     try:
         chunks = []
@@ -122,3 +126,15 @@ def start_server(log_cb=None, stop_event: threading.Event = None) -> None:
 
         if log_cb:
             log_cb("[Servidor] Servidor parado.")
+
+
+def main() -> None:
+    """Executa o servidor TCP como processo independente."""
+    try:
+        start_server(log_cb=_stdout_log)
+    except KeyboardInterrupt:
+        _stdout_log("[Servidor] Interrompido pelo usuário.")
+
+
+if __name__ == "__main__":
+    main()

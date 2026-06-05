@@ -68,7 +68,7 @@ Aceita inteiros positivos (≥ 1). Texto vira ASCII automaticamente.
 |---|---|
 | `1` | `11` |
 | `4` | `1011` |
-| `13` | `1000001` |
+| `13` | `0000011` |
 | `A` | Converte `A` → 65 → `...` |
 | `hi` | Converte `h`→104 e `i`→105 |
 

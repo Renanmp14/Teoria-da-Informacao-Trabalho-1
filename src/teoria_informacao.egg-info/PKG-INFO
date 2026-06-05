@@ -161,7 +161,7 @@ cripto-da-galera encode fibonacci <n>
 ```bash
 # Exemplo
 cripto-da-galera encode fibonacci 66
-# Saída: 1000101001
+# Saída: 0010100011
 ```
 
 Entradas inválidas como `0`, negativos ou valores não inteiros são rejeitadas.
@@ -257,7 +257,7 @@ cripto-da-galera decode fibonacci <bits>
 
 ```bash
 # Exemplo
-cripto-da-galera decode fibonacci 1000101001
+cripto-da-galera decode fibonacci 0010100011
 # Saída: 66
 ```
 

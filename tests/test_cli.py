@@ -25,7 +25,7 @@ def test_cli_fibonacci_encode_command(capsys) -> None:
     cli = CLI()
     cli.run(["encode", "fibonacci", "13"])
     captured = capsys.readouterr()
-    assert captured.out.strip() == "1000001"
+    assert captured.out.strip() == "0000011"
 
 
 def test_cli_fibonacci_decode_invalido() -> None:

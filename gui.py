@@ -1,8 +1,11 @@
 """Interface gráfica Tkinter — TP1 + TP2 de Teoria da Informação."""
 
 import random
+import subprocess
+import sys
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, scrolledtext, ttk
 
 import encoding.golomb as golomb
@@ -13,8 +16,10 @@ import error.crc as crc
 import error.hamming as hamming
 import error.repetition as repetition
 import socket_comm.client as sock_client
-from socket_comm.server import start_server
 from utils import flip_bit, text_to_ascii
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 # ──────────────────────────────────────────────────────────────
@@ -50,8 +55,9 @@ def _section(parent, text: str) -> ttk.LabelFrame:
 
 class Tab1(ttk.Frame):
 
-    def __init__(self, master):
+    def __init__(self, master, shared_state=None):
         super().__init__(master)
+        self.shared_state = shared_state if shared_state is not None else {}
         self._last_encoded = ""
         self._build()
 
@@ -200,9 +206,8 @@ class Tab1(ttk.Frame):
                 for sym, code in sorted(payload["codes"].items()):
                     lines.append(f"  '{sym}'  →  {code}")
                 lines.append(f"Bits codificados: {payload['data']}")
-                lines.append(f"JSON (cole no campo Huffman da aba Socket):")
-                lines.append(result_json)
                 codeword = result_json
+                self.shared_state["last_huffman_json"] = result_json
 
             lines.insert(0, f"{'='*55}")
             lines.insert(1, "CODIFICAÇÃO")
@@ -652,11 +657,10 @@ class Tab2(ttk.Frame):
 
 class Tab3(ttk.Frame):
 
-    def __init__(self, master):
+    def __init__(self, master, shared_state=None):
         super().__init__(master)
-        self._server_thread: threading.Thread | None = None
-        self._stop_event = threading.Event()
-        self._server_running = False
+        self.shared_state = shared_state if shared_state is not None else {}
+        self._server_process: subprocess.Popen | None = None
         self._build()
 
     def _build(self):
@@ -752,13 +756,6 @@ class Tab3(ttk.Frame):
         self.entry_golomb_m.pack(side=tk.LEFT, padx=(4, 0))
         self._golomb_enc_frame.grid_remove()
 
-        self._huffman_enc_frame = ttk.Frame(sec_enc)
-        self._huffman_enc_frame.grid(row=1, column=0, columnspan=5, sticky="ew", pady=(4, 0))
-        ttk.Label(self._huffman_enc_frame, text="JSON do Huffman (cole da Tab TP1):").pack(side=tk.LEFT)
-        self.entry_huffman_json = ttk.Entry(self._huffman_enc_frame, font=("Courier New", 10))
-        self.entry_huffman_json.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
-        self._huffman_enc_frame.grid_remove()
-
         # ── Log ───────────────────────────────────────────────
         sec_log = _section(self, "Log de Comunicação")
         sec_log.grid(row=3, column=0, sticky="nsew", padx=8, pady=(4, 8))
@@ -782,16 +779,12 @@ class Tab3(ttk.Frame):
             self._golomb_enc_frame.grid()
         else:
             self._golomb_enc_frame.grid_remove()
-        if enc == "huffman":
-            self._huffman_enc_frame.grid()
-        else:
-            self._huffman_enc_frame.grid_remove()
 
     def _decode_original(self, bits: str, algorithm: str) -> str:
         if algorithm == "huffman":
-            json_src = self.entry_huffman_json.get().strip()
+            json_src = self.shared_state.get("last_huffman_json", "").strip()
             if not json_src:
-                raise ValueError("Cole o JSON gerado na aba TP1 no campo Huffman.")
+                raise ValueError("Codifique a mensagem em Huffman na aba TP1 antes de usar Huffman no socket.")
             import json as _json
             payload = _json.loads(json_src)
             payload["data"] = bits
@@ -867,24 +860,84 @@ class Tab3(ttk.Frame):
     # ── Server ───────────────────────────────────────────────
 
     def _toggle_server(self):
-        if self._server_running:
-            self._stop_event.set()
-            self._server_running = False
-            self.btn_server.config(text="Iniciar Servidor")
-            self.lbl_status.config(text="● Parado", foreground="red")
-            self._log("[Sistema] Servidor encerrado.")
+        if self._is_server_process_running():
+            self._stop_server_process()
         else:
-            self._stop_event.clear()
-            self._server_thread = threading.Thread(
-                target=start_server,
-                kwargs={"log_cb": self._log, "stop_event": self._stop_event},
-                daemon=True,
+            self._start_server_process()
+
+    def _is_server_process_running(self) -> bool:
+        return self._server_process is not None and self._server_process.poll() is None
+
+    def _set_server_stopped(self, message: str | None = None) -> None:
+        self.btn_server.config(text="Iniciar Servidor")
+        self.lbl_status.config(text="● Parado", foreground="red")
+        if message:
+            self._log(message)
+
+    def _start_server_process(self) -> None:
+        try:
+            self._server_process = subprocess.Popen(
+                [sys.executable, "-u", "-m", "socket_comm.server"],
+                cwd=str(PROJECT_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
             )
-            self._server_thread.start()
-            self._server_running = True
-            self.btn_server.config(text="Parar Servidor")
-            self.lbl_status.config(text="● Rodando", foreground="green")
-            self._log("[Sistema] Servidor iniciado em localhost:65432")
+        except Exception as exc:
+            messagebox.showerror("Erro", f"Não foi possível iniciar o servidor: {exc}")
+            return
+
+        self.btn_server.config(text="Parar Servidor")
+        self.lbl_status.config(text="● Rodando", foreground="green")
+        self._log(f"[Sistema] Servidor iniciado como processo PID {self._server_process.pid}")
+
+        threading.Thread(target=self._read_server_output, daemon=True).start()
+        threading.Thread(target=self._watch_server_process, daemon=True).start()
+
+    def _read_server_output(self) -> None:
+        process = self._server_process
+        if process is None or process.stdout is None:
+            return
+        for line in process.stdout:
+            self._log(line.rstrip())
+
+    def _watch_server_process(self) -> None:
+        process = self._server_process
+        if process is None:
+            return
+        return_code = process.wait()
+        if self._server_process is process:
+            self._server_process = None
+            self.after(
+                0,
+                lambda: self._set_server_stopped(
+                    None
+                    if return_code == 0
+                    else f"[Sistema] Servidor finalizado com código {return_code}."
+                ),
+            )
+
+    def _stop_server_process(self) -> None:
+        process = self._server_process
+        if process is None:
+            self._set_server_stopped("[Sistema] Servidor já estava parado.")
+            return
+
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+
+        self._server_process = None
+        self._set_server_stopped("[Sistema] Servidor encerrado.")
+
+    def shutdown(self) -> None:
+        if self._is_server_process_running():
+            self._stop_server_process()
 
     # ── Client ───────────────────────────────────────────────
 
@@ -983,19 +1036,25 @@ class App:
         self.root.title("Teoria da Informação — TP1 + TP2")
         self.root.geometry("920x760")
         self.root.resizable(True, True)
+        self.shared_state = {}
         self._build()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build(self):
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill="both", expand=True, padx=6, pady=6)
 
-        tab1 = Tab1(notebook)
+        tab1 = Tab1(notebook, self.shared_state)
         tab2 = Tab2(notebook)
-        tab3 = Tab3(notebook)
+        self.tab3 = Tab3(notebook, self.shared_state)
 
         notebook.add(tab1, text="  TP1 — Codificação / Decodificação  ")
         notebook.add(tab2, text="  TP2 — Detecção e Correção de Erro  ")
-        notebook.add(tab3, text="  TP2 — Comunicação Socket  ")
+        notebook.add(self.tab3, text="  TP2 — Comunicação Socket  ")
+
+    def _on_close(self):
+        self.tab3.shutdown()
+        self.root.destroy()
 
     def run(self):
         self.root.mainloop()

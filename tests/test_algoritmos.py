@@ -15,6 +15,7 @@ from encoders.encoders import (
     Huffman_encoder,
     bit_flip,
 )
+import encoding.fibonacci as gui_fibonacci
 
 # ==========================================
 # TESTES GOLOMB
@@ -59,6 +60,22 @@ def test_fibonacci_encode_decode():
     """Testa se a codificação e decodificação preservam o valor."""
     assert Fibonnaci_Zeckendorf_decoder(Fibonnaci_Zeckendorf_encoder(1)) == 1
     assert Fibonnaci_Zeckendorf_decoder(Fibonnaci_Zeckendorf_encoder(66)) == 66
+
+
+def test_fibonacci_codewords_canonicos():
+    """Valida a ordem canônica dos bits e o terminador 11."""
+    expected = {
+        1: "11",
+        2: "011",
+        4: "1011",
+        13: "0000011",
+        66: "0010100011",
+    }
+    for number, codeword in expected.items():
+        assert Fibonnaci_Zeckendorf_encoder(number) == codeword
+        assert Fibonnaci_Zeckendorf_decoder(codeword) == number
+        assert gui_fibonacci.encode(number) == codeword
+        assert gui_fibonacci.decode(codeword) == number
 
 
 def test_fibonacci_rejeita_zero():
